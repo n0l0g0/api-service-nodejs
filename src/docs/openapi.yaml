@@ -1,0 +1,1251 @@
+openapi: 3.1.0
+info:
+  title: Aircraft Management API
+  description: |
+    API Service for Aircraft Management
+    
+    ## Authentication
+    
+    ระบบใช้ HttpOnly Cookies สำหรับ authentication แทนการส่ง JWT token ผ่าน Authorization header
+    เพื่อความปลอดภัยที่สูงขึ้น โดยมี fallback รองรับ Authorization header เพื่อ backward compatibility
+    
+    ### การใช้งาน HttpOnly Cookies
+    
+    1. **การตั้งค่า Cookies**: เรียก `/auth/cookies` พร้อม access token
+    2. **การเรียก API**: ใช้ `credentials: 'include'` ใน fetch requests
+    3. **การ Logout**: เรียก `/auth/logout` เพื่อลบ cookies
+    
+    ### ความปลอดภัย
+    
+    - **HttpOnly**: ป้องกันการเข้าถึง token ผ่าน JavaScript
+    - **Secure**: ใช้ HTTPS ใน production
+    - **SameSite**: ป้องกัน CSRF attacks
+    - **Automatic Expiration**: กำหนดอายุ cookies อัตโนมัติ
+  version: 1.0.0
+servers:
+  - url: http://localhost:8081/api
+    description: Development server
+
+components:
+  securitySchemes:
+    # HttpOnly Cookies (วิธีหลัก)
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: |
+        HttpOnly Cookie authentication (วิธีที่แนะนำ)
+        
+        ใช้ HttpOnly cookies สำหรับเก็บ JWT access token เพื่อความปลอดภัยสูงสุด
+        
+        **การใช้งาน:**
+        1. เรียก `/auth/cookies` เพื่อตั้งค่า cookies
+        2. ใช้ `credentials: 'include'` ในทุก API calls
+        3. Cookies จะถูกส่งอัตโนมัติโดย browser
+    
+    # Authorization Header (สำหรับ backward compatibility)
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token ผ่าน Authorization header (สำหรับ backward compatibility)
+        
+        **หมายเหตุ:** แนะนำให้ใช้ CookieAuth แทนเพื่อความปลอดภัย
+        
+        **รูปแบบ:** `Authorization: Bearer <jwt-token>`
+  
+  schemas:
+    # Authentication Schemas
+    AuthCookieRequest:
+      type: object
+      required:
+        - accessToken
+      properties:
+        accessToken:
+          type: string
+          format: jwt
+          description: JWT access token ที่ได้จาก auth service
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refreshToken:
+          type: string
+          format: jwt
+          description: JWT refresh token (ถ้ามี)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    AuthCookieResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Authentication cookies set successfully"
+        cookiesSet:
+          type: object
+          properties:
+            accessToken:
+              type: boolean
+              example: true
+            refreshToken:
+              type: boolean
+              example: true
+
+    AuthStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Authentication verified successfully"
+        authenticated:
+          type: boolean
+          example: true
+        user:
+          $ref: "#/components/schemas/UserInfo"
+        tokenSource:
+          type: string
+          enum: [cookie, header]
+          example: "cookie"
+
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        username:
+          type: string
+          example: "john.doe"
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+        requiredDuo:
+          type: boolean
+          example: false
+        duoVerified:
+          type: boolean
+          example: false
+
+    AuthHealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Auth system health check"
+        status:
+          type: string
+          example: "healthy"
+        features:
+          type: object
+          properties:
+            httpOnlyCookies:
+              type: boolean
+              example: true
+            fallbackHeaderAuth:
+              type: boolean
+              example: true
+            duoSupport:
+              type: boolean
+              example: true
+        currentRequest:
+          type: object
+          properties:
+            hasAuthCookies:
+              type: boolean
+              example: true
+            isAuthenticated:
+              type: boolean
+              example: true
+            tokenSource:
+              type: string
+              example: "cookie"
+            user:
+              type: string
+              example: "john.doe"
+
+    HealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "System health check completed"
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "healthy"
+            timestamp:
+              type: string
+              format: date-time
+            uptime:
+              type: number
+              example: 3600.5
+            version:
+              type: string
+              example: "1.0.0"
+            environment:
+              type: string
+              example: "development"
+            services:
+              type: object
+            request:
+              type: object
+            memory:
+              type: object
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Error message"
+        error:
+          type: string
+          example: "ERROR_CODE"
+        hint:
+          type: string
+          example: "Additional hint for fixing the error"
+
+    Aircraft:
+      type: object
+      required:
+        - registration
+        - aircraft_type
+        - engine_type
+        - engine_qty
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID ของเครื่องบิน (สร้างอัตโนมัติ)
+        registration:
+          type: string
+          description: ทะเบียนของเครื่องบิน (ต้องไม่ซ้ำกัน)
+        aircraft_type:
+          type: string
+          description: ประเภทของเครื่องบิน
+        engine_type:
+          type: string
+          description: ประเภทของเครื่องยนต์
+        engine_qty:
+          type: integer
+          description: จำนวนเครื่องยนต์
+        active:
+          type: boolean
+          description: สถานะการใช้งาน
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Engine:
+      type: object
+      required:
+        - serial_number
+        - position
+        - model
+        - aircraft_id
+      properties:
+        id:
+          type: string
+          format: uuid
+        serial_number:
+          type: string
+          description: หมายเลขซีเรียลของเครื่องยนต์
+        position:
+          type: integer
+          description: ตำแหน่งของเครื่องยนต์บนเครื่องบิน
+        model:
+          type: string
+          description: รุ่นของเครื่องยนต์
+        active:
+          type: boolean
+        average_consumption_rate_per_hour:
+          type: number
+          format: float
+        estimated_hours_remaining:
+          type: number
+          format: float
+        low_oil_threshold_hours:
+          type: number
+          format: float
+        aircraft_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    OilConsumption:
+      type: object
+      required:
+        - date
+        - flight_hours
+        - oil_added
+        - engine_id
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID ของรายการใช้น้ำมัน (สร้างอัตโนมัติ)
+        date:
+          type: string
+          format: date
+          description: วันที่บันทึกการใช้น้ำมัน
+        flight_hours:
+          type: number
+          format: float
+          description: จำนวนชั่วโมงบินตั้งแต่การบันทึกครั้งก่อน
+        oil_added:
+          type: number
+          format: float
+          description: ปริมาณน้ำมันที่เติม (ลิตร)
+        remarks:
+          type: string
+          description: หมายเหตุเพิ่มเติม
+        engine_id:
+          type: string
+          format: uuid
+          description: ID ของเครื่องยนต์ที่เกี่ยวข้อง
+        created_at:
+          type: string
+          format: date-time
+          description: วันเวลาที่สร้างข้อมูล
+        updated_at:
+          type: string
+          format: date-time
+          description: วันเวลาที่อัปเดตข้อมูลล่าสุด
+        deleted_at:
+          type: string
+          format: date-time
+          description: วันเวลาที่ลบข้อมูล (soft delete)
+
+# Global security requirement (ใช้ CookieAuth เป็นหลัก, BearerAuth เป็น fallback)
+security:
+  - CookieAuth: []
+  - BearerAuth: []
+
+paths:
+  # Authentication Endpoints
+  /auth/cookies:
+    post:
+      summary: ตั้งค่า authentication cookies
+      description: |
+        ตั้งค่า HttpOnly cookies จาก access token ที่ได้จาก auth service
+        
+        **การใช้งาน:**
+        ```javascript
+        fetch('/api/auth/cookies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // สำคัญ!
+          body: JSON.stringify({ accessToken: token })
+        });
+        ```
+      tags:
+        - Authentication
+      security: [] # ไม่ต้อง authenticate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthCookieRequest"
+      responses:
+        "200":
+          description: ตั้งค่า cookies สำเร็จ
+          headers:
+            Set-Cookie:
+              description: HttpOnly cookies สำหรับ authentication
+              schema:
+                type: string
+                example: "access_token=eyJ...; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthCookieResponse"
+        "400":
+          description: ข้อมูลไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+
+  /auth/verify:
+    get:
+      summary: ตรวจสอบสถานะการเข้าสู่ระบบ
+      description: |
+        ตรวจสอบว่าผู้ใช้ล็อกอินอยู่หรือไม่จาก HttpOnly cookies
+        
+        **การใช้งาน:**
+        ```javascript
+        fetch('/api/auth/verify', {
+          credentials: 'include' // สำคัญ!
+        });
+        ```
+      tags:
+        - Authentication
+      responses:
+        "200":
+          description: ตรวจสอบสำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStatusResponse"
+        "401":
+          description: ไม่ได้ล็อกอินหรือ token หมดอายุ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/profile:
+    get:
+      summary: ดึงข้อมูลผู้ใช้
+      description: |
+        ดึงข้อมูลผู้ใช้ที่ล็อกอินอยู่
+        
+        **การใช้งาน:**
+        ```javascript
+        fetch('/api/auth/profile', {
+          credentials: 'include' // สำคัญ!
+        });
+        ```
+      tags:
+        - Authentication
+      responses:
+        "200":
+          description: ดึงข้อมูลสำเร็จ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "User profile retrieved successfully"
+                  user:
+                    $ref: "#/components/schemas/UserInfo"
+                  tokenSource:
+                    type: string
+                    example: "cookie"
+        "401":
+          description: ไม่ได้ล็อกอิน
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      summary: ล็อกเอาต์
+      description: |
+        ล็อกเอาต์และลบ authentication cookies
+        
+        **หมายเหตุ:** endpoint นี้ต้องใช้ HttpOnly cookies เท่านั้น
+        
+        **การใช้งาน:**
+        ```javascript
+        fetch('/api/auth/logout', {
+          method: 'POST',
+          credentials: 'include' // สำคัญ!
+        });
+        ```
+      tags:
+        - Authentication
+      security:
+        - CookieAuth: [] # บังคับใช้ cookies เท่านั้น
+      responses:
+        "200":
+          description: ล็อกเอาต์สำเร็จ
+          headers:
+            Set-Cookie:
+              description: ลบ authentication cookies
+              schema:
+                type: string
+                example: "access_token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Logged out successfully"
+                  authenticated:
+                    type: boolean
+                    example: false
+        "401":
+          description: ไม่ได้ล็อกอินหรือไม่มี cookies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/health:
+    get:
+      summary: ตรวจสอบสถานะระบบ authentication
+      description: |
+        ตรวจสอบสถานะ health ของระบบ authentication
+        แสดงข้อมูลเพิ่มเติมถ้าผู้ใช้ล็อกอินแล้ว
+      tags:
+        - Authentication
+        - Health
+      security: [] # ไม่บังคับ authenticate
+      responses:
+        "200":
+          description: ตรวจสอบสำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthHealthResponse"
+
+  # Health Check Endpoints
+  /health:
+    get:
+      summary: ตรวจสอบสถานะระบบทั้งหมด
+      description: |
+        ตรวจสอบสถานะ health ของระบบทั้งหมด รวมข้อมูล authentication
+        แสดงข้อมูลเพิ่มเติมถ้าผู้ใช้ล็อกอินแล้ว
+      tags:
+        - Health
+      security: [] # ไม่บังคับ authenticate
+      responses:
+        "200":
+          description: ระบบทำงานปกติ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "500":
+          description: ระบบมีปัญหา
+
+  /health/simple:
+    get:
+      summary: ตรวจสอบสถานะแบบง่าย
+      description: ตรวจสอบสถานะแบบง่าย สำหรับ load balancer
+      tags:
+        - Health
+      security: [] # ไม่บังคับ authenticate
+      responses:
+        "200":
+          description: ระบบทำงานปกติ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /health/database:
+    get:
+      summary: ตรวจสอบสถานะฐานข้อมูล
+      description: ตรวจสอบการเชื่อมต่อฐานข้อมูล
+      tags:
+        - Health
+      security: [] # ไม่บังคับ authenticate
+      responses:
+        "200":
+          description: ฐานข้อมูลทำงานปกติ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: string
+                    example: "healthy"
+                  message:
+                    type: string
+                    example: "Database connection is healthy"
+        "500":
+          description: ฐานข้อมูลมีปัญหา
+
+  # Aircraft Management Endpoints
+  /aircraft:
+    get:
+      summary: ดึงข้อมูลเครื่องบินทั้งหมด
+      tags:
+        - Aircraft
+      responses:
+        "200":
+          description: ดึงข้อมูลเครื่องบินสำเร็จ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Aircraft"
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+    post:
+      summary: สร้างเครื่องบินใหม่
+      tags:
+        - Aircraft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - registration
+                - aircraft_type
+                - engine_type
+                - engine_qty
+              properties:
+                registration:
+                  type: string
+                  description: ทะเบียนของเครื่องบิน (ต้องไม่ซ้ำกัน)
+                aircraft_type:
+                  type: string
+                  description: ประเภทของเครื่องบิน
+                engine_type:
+                  type: string
+                  description: ประเภทของเครื่องยนต์
+                engine_qty:
+                  type: integer
+                  description: จำนวนเครื่องยนต์
+                active:
+                  type: boolean
+                  description: สถานะการใช้งาน (ค่าเริ่มต้นเป็น true)
+      responses:
+        "201":
+          description: สร้างเครื่องบินสำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Aircraft"
+        "400":
+          description: ข้อมูลไม่ถูกต้องหรือไม่ครบถ้วน
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+
+  /aircraft/{id}:
+    get:
+      summary: ดึงข้อมูลเครื่องบินตาม ID
+      tags:
+        - Aircraft
+      parameters:
+        - name: id
+          in: path
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID ของเครื่องบิน
+      responses:
+        "200":
+          description: ดึงข้อมูลเครื่องบินสำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Aircraft"
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบเครื่องบินที่ระบุ
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+    patch:
+      summary: อัปเดตข้อมูลเครื่องบิน
+      tags:
+        - Aircraft
+      parameters:
+        - name: id
+          in: path
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID ของเครื่องบิน
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                registration:
+                  type: string
+                  description: ทะเบียนของเครื่องบิน
+                aircraft_type:
+                  type: string
+                  description: ประเภทของเครื่องบิน
+                engine_type:
+                  type: string
+                  description: ประเภทของเครื่องยนต์
+                engine_qty:
+                  type: integer
+                  description: จำนวนเครื่องยนต์
+                active:
+                  type: boolean
+                  description: สถานะการใช้งาน
+      responses:
+        "200":
+          description: อัปเดตข้อมูลเครื่องบินสำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Aircraft"
+        "400":
+          description: ข้อมูลไม่ถูกต้อง
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบเครื่องบินตาม ID ที่ระบุ
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+    delete:
+      summary: ลบเครื่องบิน
+      tags:
+        - Aircraft
+      parameters:
+        - name: id
+          in: path
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID ของเครื่องบิน
+      responses:
+        "200":
+          description: ลบเครื่องบินสำเร็จ
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบเครื่องบินตาม ID ที่ระบุ
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+
+  /engines:
+    get:
+      summary: ดึงข้อมูลเครื่องยนต์ทั้งหมด
+      tags:
+        - Engine
+      responses:
+        "200":
+          description: ดึงข้อมูลเครื่องยนต์สำเร็จ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Engine"
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+    post:
+      summary: สร้างเครื่องยนต์ใหม่
+      tags:
+        - Engine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - serial_number
+                - position
+                - model
+                - aircraft_id
+              properties:
+                serial_number:
+                  type: string
+                  description: หมายเลขซีเรียลของเครื่องยนต์
+                position:
+                  type: integer
+                  description: ตำแหน่งของเครื่องยนต์บนเครื่องบิน (1, 2, 3, ...)
+                model:
+                  type: string
+                  description: รุ่นของเครื่องยนต์
+                active:
+                  type: boolean
+                  description: สถานะการใช้งานของเครื่องยนต์
+                average_consumption_rate_per_hour:
+                  type: number
+                  format: float
+                  description: อัตราการใช้น้ำมันเฉลี่ยต่อชั่วโมง (ลิตร/ชั่วโมง)
+                estimated_hours_remaining:
+                  type: number
+                  format: float
+                  description: ชั่วโมงที่เหลือโดยประมาณก่อนที่จะต้องเปลี่ยนเครื่องยนต์
+                low_oil_threshold_hours:
+                  type: number
+                  format: float
+                  description: ชั่วโมงที่ต่ำสุดก่อนที่จะต้องเติมน้ำมันใหม่
+                aircraft_id:
+                  type: string
+                  format: uuid
+                  description: ID ของเครื่องบินที่เครื่องยนต์นี้ติดตั้งอยู่
+      responses:
+        "201":
+          description: สร้างสำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Engine"
+        "400":
+          description: ข้อมูลไม่ถูกต้องหรือไม่ครบถ้วน
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบเครื่องบินที่ระบุสำหรับ Aircraft ID ที่ส่งมา
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+
+  /engines/aircraft/{aircraft_id}:
+    get:
+      summary: ดึงข้อมูลเครื่องยนต์ตาม Aircraft ID
+      tags:
+        - Engine
+      parameters:
+        - name: aircraft_id
+          in: path
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: Aircraft ID
+      responses:
+        "200":
+          description: ดึงข้อมูลเครื่องยนต์สำเร็จ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Engine"
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบเครื่องยนต์ที่เกี่ยวข้องกับ Aircraft ID ที่ระบุ
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+
+  /engines/{id}:
+    get:
+      summary: ดึงข้อมูลเครื่องยนต์ตาม ID
+      tags:
+        - Engine
+      parameters:
+        - name: id
+          in: path
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID ของเครื่องยนต์
+      responses:
+        "200":
+          description: ดึงข้อมูลเครื่องยนต์สำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Engine"
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบเครื่องยนต์ตาม ID ที่ระบุ
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+    patch:
+      summary: อัปเดตข้อมูลเครื่องยนต์
+      tags:
+        - Engine
+      parameters:
+        - name: id
+          in: path
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID ของเครื่องยนต์
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                serial_number:
+                  type: string
+                  description: หมายเลขซีเรียลของเครื่องยนต์
+                position:
+                  type: integer
+                  description: ตำแหน่งของเครื่องยนต์บนเครื่องบิน
+                model:
+                  type: string
+                  description: รุ่นของเครื่องยนต์
+                active:
+                  type: boolean
+                  description: สถานะการใช้งานของเครื่องยนต์
+                average_consumption_rate_per_hour:
+                  type: number
+                  format: float
+                  description: อัตราการใช้น้ำมันเฉลี่ยต่อชั่วโมง (ลิตร/ชั่วโมง)
+                estimated_hours_remaining:
+                  type: number
+                  format: float
+                  description: ชั่วโมงที่เหลือโดยประมาณก่อนที่จะต้องเปลี่ยนเครื่องยนต์
+                low_oil_threshold_hours:
+                  type: number
+                  format: float
+                  description: ชั่วโมงที่ต่ำสุดก่อนที่จะต้องเติมน้ำมันใหม่
+      responses:
+        "200":
+          description: อัปเดตข้อมูลเครื่องยนต์สำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Engine"
+        "400":
+          description: ข้อมูลไม่ถูกต้องหรือไม่ครบถ้วน
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบเครื่องยนต์ตาม ID ที่ระบุ
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+    delete:
+      summary: ลบเครื่องยนต์
+      tags:
+        - Engine
+      parameters:
+        - name: id
+          in: path
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID ของเครื่องยนต์
+      responses:
+        "200":
+          description: ลบเครื่องยนต์สำเร็จ
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบเครื่องยนต์ตาม ID ที่ระบุ
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+
+  /engines/{engine_id}/oil-consumptions:
+    get:
+      summary: ดึงข้อมูลการใช้น้ำมันของเครื่องยนต์
+      tags:
+        - Oil Consumption
+      parameters:
+        - name: engine_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: สำเร็จ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OilConsumption"
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      totalPages:
+                        type: integer
+        "401":
+          description: ไม่ได้ล็อกอิน
+
+  /engines/{engine_id}/calculate-oil-consumption:
+    post:
+      summary: คำนวณอัตราการใช้น้ำมันของเครื่องยนต์
+      tags:
+        - Engine
+      parameters:
+        - name: engine_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: คำนวณสำเร็จ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  engine_id:
+                    type: string
+                    format: uuid
+                  average_consumption_rate_per_hour:
+                    type: number
+                    format: float
+                  estimated_hours_remaining:
+                    type: number
+                    format: float
+                  last_calculation_date:
+                    type: string
+                    format: date-time
+        "401":
+          description: ไม่ได้ล็อกอิน
+
+  /oil-consumptions:
+    get:
+      summary: ดึงข้อมูลการใช้น้ำมันเครื่องทั้งหมด
+      tags:
+        - Oil Consumption
+      responses:
+        "200":
+          description: ดึงข้อมูลการใช้น้ำมันเครื่องสำเร็จ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OilConsumption"
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+    post:
+      summary: สร้างข้อมูลการใช้น้ำมันเครื่องใหม่
+      tags:
+        - Oil Consumption
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - date
+                - flight_hours
+                - oil_added
+                - engine_id
+              properties:
+                date:
+                  type: string
+                  format: date
+                  description: วันที่บันทึกการใช้น้ำมัน
+                flight_hours:
+                  type: number
+                  format: float
+                  description: จำนวนชั่วโมงบินตั้งแต่การบันทึกครั้งก่อน
+                oil_added:
+                  type: number
+                  format: float
+                  description: ปริมาณน้ำมันที่เติม (ลิตร)
+                remarks:
+                  type: string
+                  description: หมายเหตุเพิ่มเติม
+                engine_id:
+                  type: string
+                  format: uuid
+                  description: ID ของเครื่องยนต์ที่เกี่ยวข้อง
+      responses:
+        "201":
+          description: สร้างข้อมูลการใช้น้ำมันเครื่องสำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OilConsumption"
+        "400":
+          description: ข้อมูลไม่ถูกต้องหรือไม่ครบถ้วน
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบเครื่องยนต์ที่ระบุสำหรับ Engine ID ที่ส่งมา
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+
+  /oil-consumptions/{id}:
+    get:
+      summary: ดึงข้อมูลการใช้น้ำมันตาม ID
+      tags:
+        - Oil Consumption
+      parameters:
+        - name: id
+          in: path
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID ของการใช้น้ำมัน
+      responses:
+        "200":
+          description: ดึงข้อมูลการใช้น้ำมันเครื่องสำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OilConsumption"
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบข้อมูลการใช้น้ำมันตาม ID ที่ระบุ
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+    put:
+      summary: อัปเดตข้อมูลการใช้น้ำมันเครื่อง
+      tags:
+        - Oil Consumption
+      parameters:
+        - name: id
+          in: path
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID ของการใช้น้ำมัน
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date:
+                  type: string
+                  format: date
+                  description: วันที่บันทึกการใช้น้ำมัน
+                flight_hours:
+                  type: number
+                  format: float
+                  description: จำนวนชั่วโมงบินตั้งแต่การบันทึกครั้งก่อน
+                oil_added:
+                  type: number
+                  format: float
+                  description: ปริมาณน้ำมันที่เติม (ลิตร)
+                remarks:
+                  type: string
+                  description: หมายเหตุเพิ่มเติม
+      responses:
+        "200":
+          description: อัปเดตข้อมูลการใช้น้ำมันเครื่องสำเร็จ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OilConsumption"
+        "400":
+          description: ข้อมูลไม่ถูกต้องหรือไม่ครบถ้วน
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบข้อมูลการใช้น้ำมันตาม ID ที่ระบุ
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+    delete:
+      summary: ลบข้อมูลการใช้น้ำมันเครื่อง
+      tags:
+        - Oil Consumption
+      parameters:
+        - name: id
+          in: path
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID ของการใช้น้ำมัน
+      responses:
+        "200":
+          description: ลบข้อมูลการใช้น้ำมันเครื่องสำเร็จ
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบข้อมูลการใช้น้ำมันตาม ID ที่ระบุ
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
+
+  /oil-consumptions/engine/{engine_id}:
+    get:
+      summary: ดึงข้อมูลการใช้น้ำมันของเครื่องยนต์ตาม Engine ID
+      tags:
+        - Oil Consumption
+      parameters:
+        - name: engine_id
+          in: path
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID ของเครื่องยนต์
+      responses:
+        "200":
+          description: ดึงข้อมูลการใช้น้ำมันเครื่องสำเร็จ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OilConsumption"
+        "401":
+          description: ไม่ได้ล็อกอิน
+        "404":
+          description: ไม่พบข้อมูลการใช้น้ำมันสำหรับ Engine ID ที่ระบุ
+        "500":
+          description: เกิดข้อผิดพลาดที่เซิร์ฟเวอร์
