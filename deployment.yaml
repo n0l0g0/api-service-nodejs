@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-service-nodejs
+  namespace: api-service-nodejs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-service-nodejs
+  template:
+    metadata:
+      labels:
+        app: api-service-nodejs
+    spec:
+      containers:
+        - name: api-service-nodejs
+          image: image-registry.openshift-image-registry.svc:5000/api-service-nodejs/api-service-nodejs:latest
+          ports:
+            - containerPort: 8081
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "8081"
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: api-service-db-secret
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: api-service-db-secret
+                  key: DB_PORT
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: api-service-db-secret
+                  key: DB_DATABASE
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: api-service-db-secret
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: api-service-db-secret
+                  key: DB_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: api-service-secret
+                  key: JWT_SECRET
+            - name: FRONTEND_URL
+              value: "http://localhost:3000"
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 5 
