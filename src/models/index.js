@@ -1,20 +1,50 @@
 /**
  * API Service Models
- * ใช้ shared models และกำหนด associations
+ * ใช้ local models แทน shared models
  */
 
-const { createModels } = require('aircraft-shared-models');
 const { sequelize } = require('../config/database');
-const { DataTypes } = require('sequelize');
 
-// สร้าง models ทั้งหมดจาก shared models
-const models = createModels(sequelize, DataTypes);
+// Import models
+const Aircraft = require('./aircraft')(sequelize);
+const Engine = require('./engine')(sequelize);
+const OilConsumption = require('./oil-consumption')(sequelize);
 
-// Export models สำหรับใช้งานใน api service
-const { Aircraft, Engine, OilConsumption } = models;
+// Define associations
+Aircraft.hasMany(Engine, {
+  foreignKey: 'aircraftId',
+  as: 'engines'
+});
 
-// เพิ่ม sequelize instance สำหรับการใช้งาน
-models.sequelize = sequelize;
-models.Sequelize = require('sequelize');
+Engine.belongsTo(Aircraft, {
+  foreignKey: 'aircraftId',
+  as: 'aircraft'
+});
 
-module.exports = { Aircraft, Engine, OilConsumption };
+Aircraft.hasMany(OilConsumption, {
+  foreignKey: 'aircraftId',
+  as: 'oilConsumptions'
+});
+
+Engine.hasMany(OilConsumption, {
+  foreignKey: 'engineId',
+  as: 'oilConsumptions'
+});
+
+OilConsumption.belongsTo(Aircraft, {
+  foreignKey: 'aircraftId',
+  as: 'aircraft'
+});
+
+OilConsumption.belongsTo(Engine, {
+  foreignKey: 'engineId',
+  as: 'engine'
+});
+
+// Export models
+module.exports = {
+  Aircraft,
+  Engine,
+  OilConsumption,
+  sequelize
+};

@@ -5,8 +5,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies (ไม่ใช้ npm ci เพราะไม่มี package-lock.json)
-RUN npm install --only=production
+# Install dependencies (ใช้ npm install แทน npm ci)
+RUN npm install
 
 # Copy source code
 COPY . .
