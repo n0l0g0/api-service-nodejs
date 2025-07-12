@@ -72,5 +72,5 @@ spec:
             httpGet:
               path: /api/health
               port: 8081
-            initialDelaySeconds: 5
-            periodSeconds: 5 
+            initialDelaySeconds: 30
+            periodSeconds: 10 

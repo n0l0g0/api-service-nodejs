@@ -89,6 +89,8 @@ EOF
       }
     }
 
+
+
     stage('Create ImageStream') {
       steps {
         script {
