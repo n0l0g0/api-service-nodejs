@@ -15,6 +15,9 @@ COPY . .
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -S nodejs -u 1001
 
+# Create logs directory with correct ownership
+RUN mkdir -p logs && chown -R nodejs:nodejs logs
+
 # Change ownership
 RUN chown -R nodejs:nodejs /app
 USER nodejs

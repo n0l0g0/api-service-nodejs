@@ -18,25 +18,7 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: 'api-service' },
   transports: [
-    // บันทึกข้อความทั้งหมดไปยังไฟล์ error.log
-    new winston.transports.File({
-      filename: 'logs/error.log',
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5
-    }),
-    // บันทึกข้อความทั้งหมดไปยังไฟล์ combined.log
-    new winston.transports.File({
-      filename: 'logs/combined.log',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5
-    })
-  ]
-});
-
-// ถ้าไม่ได้อยู่ในโหมด production ให้แสดงผลที่คอนโซลด้วย
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(
+    // ใช้ console transport ใน production เพื่อหลีกเลี่ยงปัญหา permission
     new winston.transports.Console({
       format: winston.format.combine(
         winston.format.colorize(),
@@ -45,6 +27,25 @@ if (process.env.NODE_ENV !== 'production') {
             `${info.timestamp} ${info.level}: ${info.message}${info.stack ? '\n' + info.stack : ''}`
         )
       )
+    })
+  ]
+});
+
+// ถ้าไม่ได้อยู่ในโหมด production ให้เพิ่ม file transports
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(
+    new winston.transports.File({
+      filename: 'logs/error.log',
+      level: 'error',
+      maxsize: 5242880, // 5MB
+      maxFiles: 5
+    })
+  );
+  logger.add(
+    new winston.transports.File({
+      filename: 'logs/combined.log',
+      maxsize: 5242880, // 5MB
+      maxFiles: 5
     })
   );
 }
