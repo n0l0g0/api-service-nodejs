@@ -69,6 +69,44 @@ EOF
       }
     }
 
+    stage('Create Namespace') {
+      steps {
+        script {
+          sh """
+            oc apply -f namespace.yaml || echo "Namespace already exists"
+          """
+        }
+      }
+    }
+
+    stage('Create Secrets') {
+      steps {
+        script {
+          sh """
+            oc apply -f secrets.yaml -n ${NAMESPACE} || echo "Secrets already exist"
+          """
+        }
+      }
+    }
+
+    stage('Create ImageStream') {
+      steps {
+        script {
+          sh """
+            oc get is ${BUILD_NAME} -n ${NAMESPACE} || oc apply -n ${NAMESPACE} -f - <<EOF
+            apiVersion: image.openshift.io/v1
+            kind: ImageStream
+            metadata:
+              name: ${BUILD_NAME}
+            spec:
+              lookupPolicy:
+                local: true
+EOF
+          """
+        }
+      }
+    }
+
     stage('Deploy to OpenShift') {
       steps {
         script {
