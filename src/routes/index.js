@@ -1,6 +1,8 @@
 /**
  * ไฟล์หลักสำหรับจัดการเส้นทาง (routes) ทั้งหมดในแอปพลิเคชัน
  * อัปเดตให้รองรับ HttpOnly cookies authentication
+ * 
+ * *** DEMO MODE: Auth middleware bypassed for demo purposes ***
  * @module routes/index
  */
 
@@ -16,7 +18,7 @@ const { getSystemHealth, getSimpleHealth, getDatabaseHealth } = require('../cont
 // เส้นทาง Health Check (ไม่ต้อง authenticate)
 router.get('/health', optionalAuth, getSystemHealth);
 router.get('/health/simple', getSimpleHealth);
-router.get('/health/database', getDatabaseHealth);
+
 
 // Debug endpoint สำหรับตรวจสอบ cookies (development only)
 router.get('/debug/cookies', (req, res) => {
@@ -47,10 +49,26 @@ router.get('/debug/cookies', (req, res) => {
 // เพราะแต่ละ endpoint ใน auth routes จะจัดการ authentication เอง
 router.use('/auth', authRoutes);
 
+// *** DEMO MODE: Comment out auth middleware ***
 // กำหนด middleware สำหรับตรวจสอบ JWT Token
 // ใช้สำหรับป้องกันเส้นทางที่ต้องการการยืนยันตัวตน
 // รองรับทั้ง HttpOnly cookies และ Authorization header
-router.use(verifyToken);
+// router.use(verifyToken);
+
+// *** DEMO MODE: Add mock user middleware for routes that need req.user ***
+router.use((req, res, next) => {
+  // Mock user data for demo
+  req.user = {
+    id: 'demo-user-id',
+    username: 'demo-user',
+    email: 'demo@example.com',
+    requiredDuo: false,
+    duoVerified: true
+  };
+  req.tokenSource = 'demo-mock';
+  console.log('DEMO MODE: Added mock user to request');
+  next();
+});
 
 // เส้นทาง API สำหรับเครื่องบิน (ต้อง authenticate)
 router.use('/aircraft', aircraftRoutes);
@@ -67,10 +85,12 @@ router.get('/', (req, res) => {
     message: 'ยินดีต้อนรับสู่ API Service สำหรับจัดการข้อมูลเครื่องบิน',
     version: '1.0.0',
     status: 'online',
+    mode: 'DEMO - Authentication bypassed', // เพิ่มข้อมูลว่าอยู่ใน demo mode
     authentication: {
       supported: ['HttpOnly Cookies', 'Authorization Header'],
       primary: 'HttpOnly Cookies',
-      fallback: 'Authorization Header'
+      fallback: 'Authorization Header',
+      current: 'BYPASSED FOR DEMO'
     },
     endpoints: {
       auth: '/api/auth/*',

@@ -1,50 +1,39 @@
 /**
  * API Service Models
- * ใช้ local models แทน shared models
+ * กำหนด models และ associations
  */
 
 const { sequelize } = require('../config/database');
+const { DataTypes } = require('sequelize');
 
-// Import models
-const Aircraft = require('./aircraft')(sequelize);
-const Engine = require('./engine')(sequelize);
-const OilConsumption = require('./oil-consumption')(sequelize);
+// Import individual models
+const createAircraftModel = require('./aircraft');
+const createEngineModel = require('./engine');
+const createOilConsumptionModel = require('./oil-consumption');
+const createUserModel = require('./user');
 
-// Define associations
-Aircraft.hasMany(Engine, {
-  foreignKey: 'aircraftId',
-  as: 'engines'
-});
+// สร้าง models
+const Aircraft = createAircraftModel(sequelize, DataTypes);
+const Engine = createEngineModel(sequelize, DataTypes);
+const OilConsumption = createOilConsumptionModel(sequelize, DataTypes);
+const User = createUserModel(sequelize, DataTypes);
 
-Engine.belongsTo(Aircraft, {
-  foreignKey: 'aircraftId',
-  as: 'aircraft'
-});
-
-Aircraft.hasMany(OilConsumption, {
-  foreignKey: 'aircraftId',
-  as: 'oilConsumptions'
-});
-
-Engine.hasMany(OilConsumption, {
-  foreignKey: 'engineId',
-  as: 'oilConsumptions'
-});
-
-OilConsumption.belongsTo(Aircraft, {
-  foreignKey: 'aircraftId',
-  as: 'aircraft'
-});
-
-OilConsumption.belongsTo(Engine, {
-  foreignKey: 'engineId',
-  as: 'engine'
-});
-
-// Export models
-module.exports = {
+const models = {
   Aircraft,
   Engine,
   OilConsumption,
-  sequelize
+  User
 };
+
+// กำหนด associations
+Object.keys(models).forEach((modelName) => {
+  if (models[modelName].associate) {
+    models[modelName].associate(models);
+  }
+});
+
+// เพิ่ม sequelize instance สำหรับการใช้งาน
+models.sequelize = sequelize;
+models.Sequelize = require('sequelize');
+
+module.exports = { Aircraft, Engine, OilConsumption, User };

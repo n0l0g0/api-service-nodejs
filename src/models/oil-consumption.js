@@ -1,6 +1,12 @@
-const { DataTypes } = require('sequelize');
+/**
+ * OilConsumption Model
+ * สำหรับเก็บข้อมูลการเติมและใช้งานน้ำมันเครื่องของเครื่องยนต์
+ * @module models/oilConsumption
+ * @requires sequelize
+ * @requires DataTypes
+ */
 
-module.exports = (sequelize) => {
+module.exports = (sequelize, DataTypes) => {
   const OilConsumption = sequelize.define('OilConsumption', {
     id: {
       type: DataTypes.UUID,
@@ -8,53 +14,47 @@ module.exports = (sequelize) => {
       primaryKey: true
     },
     date: {
-      type: DataTypes.DATE,
+      type: DataTypes.DATEONLY,
       allowNull: false
     },
-    oilType: {
-      type: DataTypes.STRING,
+    flight_hours: {
+      type: DataTypes.FLOAT,
       allowNull: false
     },
-    quantity: {
-      type: DataTypes.DECIMAL(10, 2),
+    oil_added: {
+      type: DataTypes.FLOAT,
       allowNull: false
     },
-    unit: {
-      type: DataTypes.ENUM('liters', 'gallons'),
-      defaultValue: 'liters'
-    },
-    cost: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: true
-    },
-    supplier: {
-      type: DataTypes.STRING,
-      allowNull: true
-    },
-    notes: {
+    remarks: {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    aircraftId: {
+    engine_id: {
       type: DataTypes.UUID,
-      allowNull: false,
-      references: {
-        model: 'aircraft',
-        key: 'id'
-      }
+      allowNull: false
     },
-    engineId: {
-      type: DataTypes.UUID,
-      allowNull: true,
-      references: {
-        model: 'engines',
-        key: 'id'
-      }
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true
     }
   }, {
     tableName: 'oil_consumptions',
-    timestamps: true
+    timestamps: true,
+    underscored: true,
+    paranoid: true, // เปิดใช้งาน Soft Delete
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    deletedAt: 'deleted_at'
   });
+
+  // กำหนดความสัมพันธ์กับโมเดลอื่น
+  OilConsumption.associate = (models) => {
+    OilConsumption.belongsTo(models.Engine, {
+      foreignKey: 'engine_id',
+      as: 'engine',
+      onDelete: 'CASCADE' // หาก Engine ถูกลบ ให้ลบข้อมูลการใช้น้ำมันด้วย
+    });
+  };
 
   return OilConsumption;
 }; 
